@@ -3,10 +3,15 @@ import numpy as np
 import sklearn as sk
 import os
 import cv2
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, GridSearchCV
+from sklearn.metrics import accuracy_score
+from sklearn.svm import SVC
+from skimage.feature import hog
+import random
 
 def load_images(image_paths, augment=False):
     dataset = {}
+    target_size=(64, 64)
 
     for path in image_paths:
         path_parts = path.split("\\")
@@ -15,7 +20,10 @@ def load_images(image_paths, augment=False):
 
         key = image_name + "," + mushroom_type
         image_path = "data\\" + mushroom_type + "\\" + image_name
-        image = cv2.imread(image_path)
+        image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
+
+        # Resize image to target size
+        image = cv2.resize(image, target_size)
 
         if augment:
             flipped_image = cv2.flip(image, 1)  # Flip horizontally
@@ -110,6 +118,55 @@ def load_data(root_dir):
     # Return the datasets
     return train_set, val_set, test_set
 
+def extract_features_and_labels(dataset):
+    features = []
+    labels = []
+    
+    for key, image in dataset.items():
+        image_name, label = key.split(",")
+        hog_features = hog(image, pixels_per_cell=(8, 8), cells_per_block=(2, 2), feature_vector=True)
+        hog_features = hog_features.flatten()
+        features.append(hog_features)
+        labels.append(label)
+        
+    return np.array(features), np.array(labels)
+
+def train_and_evaluate(x_treniranje, y_treniranje, x_validacija, y_validacija):
+    print("Classifier training...")
+
+    param_grid = {'C': [0.01, 0.05, 0.1, 0.5, 1, 2, 3, 4, 5, 10, 20, 50, 100], 'kernel': ['poly']}
+    grid_search = GridSearchCV(SVC(), param_grid, cv=5, scoring='accuracy')
+    grid_search.fit(x_treniranje, y_treniranje)
+
+    best_classifier = grid_search.best_estimator_
+    y_train_pred = best_classifier.predict(x_treniranje)
+    y_test_pred = best_classifier.predict(x_validacija)
+
+    treniranje_accuracy = accuracy_score(y_treniranje, y_train_pred)
+    validacija_accuracy = accuracy_score(y_validacija, y_test_pred)
+
+    print("Best parameters found: ", grid_search.best_params_)
+    print("Training accuracy: ", treniranje_accuracy)
+    print("Validation accuracy: ", validacija_accuracy)
+    print()
+
+    return best_classifier
+
+
+def test_classifier(classifier, test_images):
+    print("Testing...")
+    test_dataset = load_images(test_images, False)  # No augmentation for test images"
+
+    x_test, y_test = extract_features_and_labels(test_dataset)
+
+    y_test_pred = classifier.predict(x_test)
+    test_accuracy = accuracy_score(y_test, y_test_pred)
+
+    print("Test Accuracy: ", test_accuracy * 100, "%")
+    print()
+    return test_accuracy
+
+
 if __name__=="__main__":
     current_directory = os.getcwd()
     parent_directory = os.path.dirname(current_directory)
@@ -124,8 +181,22 @@ if __name__=="__main__":
     print("Loading validation dataset...")
     validation_dataset = load_images(validation_images, False)  #no need to augment validation dataset
     print("Validation dataset loaded, loaded " + str(len(validation_dataset)) + " images")
-    print("Loading test dataset...")
-    test_dataset = load_images(test_images, False)  #no need to augment test dataset
-    print("Test dataset loaded, loaded " + str(len(test_dataset)) + " images")
+    print()
 
-    
+    #whole dataset
+    #x_training, y_training = extract_features_and_labels(training_dataset)
+    #x_validation, y_validation = extract_features_and_labels(validation_dataset)
+    #best_classifier = train_and_evaluate(x_training, y_training, x_validation, y_validation)
+    #test_accuracy = test_classifier(best_classifier, test_images)
+
+    #subset for faster computing
+    subset_size = len(training_dataset) // 10
+    training_subset_keys = random.sample(list(training_dataset.keys()), subset_size)
+    training_subset = {key: training_dataset[key] for key in training_subset_keys}
+    subset_size = len(validation_dataset) // 10
+    validation_subset_keys = random.sample(list(validation_dataset.keys()), subset_size)
+    validation_subset = {key: validation_dataset[key] for key in validation_subset_keys}
+    x_training, y_training = extract_features_and_labels(training_subset)
+    x_validation, y_validation = extract_features_and_labels(validation_subset)
+    best_classifier = train_and_evaluate(x_training, y_training, x_validation, y_validation)
+    test_accuracy = test_classifier(best_classifier, test_images)
