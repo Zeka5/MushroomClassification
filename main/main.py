@@ -5,7 +5,7 @@ import os
 import cv2
 from sklearn.model_selection import train_test_split
 
-def load_images(image_paths):
+def load_images(image_paths, augment=False):
     dataset = {}
 
     for path in image_paths:
@@ -15,9 +15,14 @@ def load_images(image_paths):
 
         key = image_name + "," + mushroom_type
         image_path = "data\\" + mushroom_type + "\\" + image_name
-        value = cv2.imread(image_path)
+        image = cv2.imread(image_path)
 
-        dataset[key] = value
+        if augment:
+            flipped_image = cv2.flip(image, 1)  # Flip horizontally
+            flipped_key = "flipped_" + key
+            dataset[flipped_key] = flipped_image
+
+        dataset[key] = image
 
     return dataset
 
@@ -114,5 +119,13 @@ if __name__=="__main__":
 
     training_images, validation_images, test_images = load_data(data_dir)
     print("Loading training dataset...")
-    training_dataset = load_images(training_images)
-    print("Training dataset loaded")
+    training_dataset = load_images(training_images, True)
+    print("Training dataset loaded, loaded " + str(len(training_dataset)) + " images")
+    print("Loading validation dataset...")
+    validation_dataset = load_images(validation_images, False)  #no need to augment validation dataset
+    print("Validation dataset loaded, loaded " + str(len(validation_dataset)) + " images")
+    print("Loading test dataset...")
+    test_dataset = load_images(test_images, False)  #no need to augment test dataset
+    print("Test dataset loaded, loaded " + str(len(test_dataset)) + " images")
+
+    
