@@ -8,6 +8,14 @@ from sklearn.metrics import accuracy_score
 from sklearn.svm import SVC
 from skimage.feature import hog
 import random
+import tensorflow as tf
+from tensorflow import keras
+from tensorflow.keras.models import Sequential, Model
+from tensorflow.keras.layers import Conv2D, MaxPooling2D, Flatten, Dense, Dropout, GlobalAveragePooling2D
+from tensorflow.keras.utils import to_categorical
+from sklearn.preprocessing import LabelEncoder
+from tensorflow.keras.applications import ResNet50
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
 
 def load_images(image_paths, augment=False):
     dataset = {}
@@ -15,8 +23,8 @@ def load_images(image_paths, augment=False):
 
     for path in image_paths:
         path_parts = path.split("\\")
-        mushroom_type = path_parts[4]
-        image_name = path_parts[5]
+        mushroom_type = path_parts[-2]
+        image_name = path_parts[-1]
 
         key = image_name + "," + mushroom_type
         image_path = "data\\" + mushroom_type + "\\" + image_name
@@ -33,6 +41,31 @@ def load_images(image_paths, augment=False):
         dataset[key] = image
 
     return dataset
+
+def load_images_for_cnn(image_paths, augment=False):
+    dataset = []
+    labels = []
+    target_size = (64, 64)
+
+    for path in image_paths:
+        path_parts = path.split("\\")
+        mushroom_type = path_parts[-2]
+        image_name = path_parts[-1]
+
+        image_path = os.path.join("data", mushroom_type, image_name)
+        image = cv2.imread(image_path, cv2.IMREAD_COLOR)
+        image = cv2.resize(image, target_size)
+        image = image / 255.0  # normalize pixels to [0, 1]
+
+        dataset.append(image)
+        labels.append(mushroom_type)
+
+        if augment:
+            flipped_image = cv2.flip(image, 1)  # Flip horizontally
+            dataset.append(flipped_image)
+            labels.append(mushroom_type)
+
+    return np.array(dataset), np.array(labels)
 
 def load_data(root_dir):
     agaricus = []
@@ -118,6 +151,22 @@ def load_data(root_dir):
     # Return the datasets
     return train_set, val_set, test_set
 
+def create_cnn_model(input_shape, num_classes):
+    model = Sequential()
+    model.add(Conv2D(32, (3, 3), activation='relu', input_shape=input_shape))
+    model.add(MaxPooling2D((2, 2)))
+    model.add(Conv2D(64, (3, 3), activation='relu'))
+    model.add(MaxPooling2D((2, 2)))
+    model.add(Conv2D(128, (3, 3), activation='relu'))
+    model.add(MaxPooling2D((2, 2)))
+    model.add(Flatten())
+    model.add(Dense(512, activation='relu'))
+    model.add(Dropout(0.5))
+    model.add(Dense(num_classes, activation='softmax'))
+
+    model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
+    return model
+
 def extract_features_and_labels(dataset):
     features = []
     labels = []
@@ -152,6 +201,21 @@ def train_and_evaluate(x_treniranje, y_treniranje, x_validacija, y_validacija):
 
     return best_classifier
 
+def train_cnn_model(x_train, y_train, x_val, y_val, input_shape, num_classes):
+    y_train = to_categorical(y_train, num_classes)
+    y_val = to_categorical(y_val, num_classes)
+
+    model = create_cnn_model(input_shape, num_classes)
+    model.fit(x_train, y_train, epochs=10, batch_size=32, validation_data=(x_val, y_val))
+
+    return model
+
+def evaluate_cnn_model(model, x_test, y_test, num_classes):
+    y_test = to_categorical(y_test, num_classes)
+    test_loss, test_accuracy = model.evaluate(x_test, y_test)
+    print("Test Accuracy: ", test_accuracy * 100, "%")
+    return test_accuracy
+
 
 def test_classifier(classifier, test_images):
     print("Testing...")
@@ -166,6 +230,66 @@ def test_classifier(classifier, test_images):
     print()
     return test_accuracy
 
+def cnn_subset_data(x_data, y_data, subset_fraction=0.1):
+    subset_size = int(len(x_data) * subset_fraction)
+    indices = np.random.choice(len(x_data), subset_size, replace=False)
+    x_subset = x_data[indices]
+    y_subset = y_data[indices]
+    return x_subset, y_subset
+
+def build_resnet_model(input_shape, num_classes):
+    base_model = ResNet50(weights='imagenet', include_top=False, input_shape=input_shape)
+    base_model.trainable = False  # Freeze the base model
+
+    x = base_model.output
+    x = GlobalAveragePooling2D()(x)
+    x = Dense(1024, activation='relu')(x)
+    predictions = Dense(num_classes, activation='softmax')(x)
+
+    model = Model(inputs=base_model.input, outputs=predictions)
+    model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
+    
+    return model
+
+# def train_resnet_model(model, x_train, y_train, x_val, y_val, epochs=10):
+#     model.fit(
+#         x_train, y_train,
+#         epochs=epochs,
+#         batch_size=32,
+#         validation_data=(x_val, y_val)
+#     )
+
+#     # Unfreeze some layers in the base model for fine-tuning
+#     for layer in model.layers[-10:]:
+#         layer.trainable = True
+
+#     model.compile(optimizer=tf.keras.optimizers.Adam(1e-5), loss='categorical_crossentropy', metrics=['accuracy'])
+
+#     # Continue training the model
+#     model.fit(
+#         x_train, y_train,
+#         epochs=epochs,
+#         batch_size=32,
+#         validation_data=(x_val, y_val)
+#     )
+    
+#     return model
+
+def train_resnet_model(model, x_train, y_train, x_val, y_val, epochs=10):
+    try:
+        model.fit(x_train, y_train, epochs=epochs, batch_size=32, validation_data=(x_val, y_val))
+        for layer in model.layers[-10:]:
+            layer.trainable = True
+        model.compile(optimizer=tf.keras.optimizers.Adam(1e-5), loss='categorical_crossentropy', metrics=['accuracy'])
+        model.fit(x_train, y_train, epochs=epochs, batch_size=32, validation_data=(x_val, y_val))
+        return model
+    except Exception as e:
+        print(f"Error during training: {str(e)}")
+        raise
+
+def evaluate_resnet_model(model, x_test, y_test):
+    test_loss, test_accuracy = model.evaluate(x_test, y_test)
+    return test_accuracy
 
 if __name__=="__main__":
     current_directory = os.getcwd()
@@ -173,15 +297,54 @@ if __name__=="__main__":
     os.chdir(parent_directory)
     new_directory = os.getcwd()
     data_dir = os.path.join(new_directory, 'data')
-
     training_images, validation_images, test_images = load_data(data_dir)
-    print("Loading training dataset...")
+
+    print("Loading and preprocessing datasets for CNN...")
+    x_train, y_train = load_images_for_cnn(training_images, augment=True)
+    x_val, y_val = load_images_for_cnn(validation_images, augment=False)
+    x_test, y_test = load_images_for_cnn(test_images, augment=False)
+
+    #neural networks require numeric input, this maps labels to numbers
+    input_shape = (64, 64, 3)
+    num_classes = len(np.unique(y_train))
+    le = LabelEncoder()
+    y_train = le.fit_transform(y_train)
+    y_val = le.transform(y_val)
+    y_test = le.transform(y_test)
+    y_train = tf.keras.utils.to_categorical(y_train, num_classes=len(le.classes_))
+    y_val = tf.keras.utils.to_categorical(y_val, num_classes=len(le.classes_))
+    y_test = tf.keras.utils.to_categorical(y_test, num_classes=len(le.classes_))
+
+    # whith whole dataset
+    # print("Training CNN model...")
+    # cnn_model = train_cnn_model(x_train, y_train, x_val, y_val, input_shape, num_classes)
+
+    subset_fraction = 0.1  # 10% of data for fair comparison
+
+    # subsetting the training and validation data for CNN
+    x_train_subset, y_train_subset = cnn_subset_data(x_train, y_train, subset_fraction)
+    x_val_subset, y_val_subset = cnn_subset_data(x_val, y_val, subset_fraction)
+
+    # print("Training CNN model on subset...")
+    # cnn_model = train_cnn_model(x_train_subset, y_train_subset, x_val_subset, y_val_subset, input_shape, num_classes)
+
+    # print("Evaluating CNN model...")
+    # cnn_test_accuracy = evaluate_cnn_model(cnn_model, x_test, y_test, num_classes)
+
+    # Ensure y_train_subset and y_val_subset are properly shaped
+    print(y_train_subset.shape, y_val_subset.shape)
+
+    print("Building and training ResNet model on subset...")
+    resnet_model = build_resnet_model(input_shape, num_classes)
+    resnet_model = train_resnet_model(resnet_model, x_train_subset, y_train_subset, x_val_subset, y_val_subset)
+
+    print("Evaluating ResNet model...")
+    resnet_test_accuracy = evaluate_resnet_model(resnet_model, x_test, y_test)
+
+    # comparing with SVM
+    print("Loading datasets for SVM...")
     training_dataset = load_images(training_images, True)
-    print("Training dataset loaded, loaded " + str(len(training_dataset)) + " images")
-    print("Loading validation dataset...")
-    validation_dataset = load_images(validation_images, False)  #no need to augment validation dataset
-    print("Validation dataset loaded, loaded " + str(len(validation_dataset)) + " images")
-    print()
+    validation_dataset = load_images(validation_images, False)
 
     #whole dataset
     #x_training, y_training = extract_features_and_labels(training_dataset)
@@ -196,7 +359,17 @@ if __name__=="__main__":
     subset_size = len(validation_dataset) // 10
     validation_subset_keys = random.sample(list(validation_dataset.keys()), subset_size)
     validation_subset = {key: validation_dataset[key] for key in validation_subset_keys}
+    
     x_training, y_training = extract_features_and_labels(training_subset)
     x_validation, y_validation = extract_features_and_labels(validation_subset)
+
+    print("Training SVM model...")
     best_classifier = train_and_evaluate(x_training, y_training, x_validation, y_validation)
-    test_accuracy = test_classifier(best_classifier, test_images)
+
+    print("Evaluating SVM model...")
+    svm_test_accuracy = test_classifier(best_classifier, test_images)
+
+    print("Comparison of test accuracies:")
+    #print(f"CNN Test Accuracy: {cnn_test_accuracy * 100:.2f}%")
+    print(f"CNN (ResNet) Test Accuracy: {resnet_test_accuracy * 100:.2f}%")
+    print(f"SVM Test Accuracy: {svm_test_accuracy * 100:.2f}%")
