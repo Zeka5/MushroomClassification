@@ -16,6 +16,7 @@ from tensorflow.keras.utils import to_categorical
 from sklearn.preprocessing import LabelEncoder
 from tensorflow.keras.applications import ResNet50
 from tensorflow.keras import Input
+import matplotlib.pyplot as plt
 
 import certifi
 import ssl
@@ -185,7 +186,8 @@ def extract_features_and_labels(dataset):
     return np.array(features), np.array(labels)
 
 def train_and_evaluate(x_treniranje, y_treniranje, x_validacija, y_validacija):
-    param_grid = {'C': [0.01, 0.05, 0.1, 0.5, 1, 2, 3, 4, 5, 10, 20, 50, 100], 'kernel': ['poly']}
+    #param_grid = {'C': [0.01, 0.05, 0.1, 0.5, 1, 2, 3, 4, 5, 10, 20, 50, 100], 'kernel': ['poly']}
+    param_grid = {'C': [0.01, 0.1, 1, 10], 'kernel': ['linear', 'rbf']}
     grid_search = GridSearchCV(SVC(), param_grid, cv=5, scoring='accuracy')
     grid_search.fit(x_treniranje, y_treniranje)
 
@@ -217,26 +219,26 @@ def train_cnn_model(x_train, y_train, x_val, y_val, num_classes):
 
     return model
 
-def evaluate_cnn_model(model, x_test, y_test, num_classes):
-    y_test = to_categorical(y_test, num_classes)
-    test_loss, test_accuracy = model.evaluate(x_test, y_test)
-    print()
-    print("CNN test accuracy: ", test_accuracy * 100, "%")
-    print()
-    return test_accuracy
+# def evaluate_cnn_model(model, x_test, y_test, num_classes):
+#     y_test = to_categorical(y_test, num_classes)
+#     test_loss, test_accuracy = model.evaluate(x_test, y_test)
+#     print()
+#     print("CNN test accuracy: ", test_accuracy * 100, "%")
+#     print()
+#     return test_accuracy
 
 
-def test_classifier(classifier, test_images):
-    test_dataset = load_images(test_images, False)  # No augmentation for test images"
+# def test_classifier(classifier, test_images):
+#     test_dataset = load_images(test_images, False)  # No augmentation for test images"
 
-    x_test, y_test = extract_features_and_labels(test_dataset)
+#     x_test, y_test = extract_features_and_labels(test_dataset)
 
-    y_test_pred = classifier.predict(x_test)
-    test_accuracy = accuracy_score(y_test, y_test_pred)
+#     y_test_pred = classifier.predict(x_test)
+#     test_accuracy = accuracy_score(y_test, y_test_pred)
 
-    print("Test Accuracy: ", test_accuracy * 100, "%")
-    print()
-    return test_accuracy
+#     print("Test Accuracy: ", test_accuracy * 100, "%")
+#     print()
+#     return test_accuracy
 
 def cnn_subset_data(x_data, y_data, subset_fraction=0.1):
     subset_size = int(len(x_data) * subset_fraction)
@@ -292,11 +294,189 @@ def train_resnet_model(model, x_train, y_train, x_val, y_val, epochs=10):
         print(f"Error during training: {str(e)}")
         raise
 
-def evaluate_resnet_model(model, x_test, y_test):
+# def evaluate_resnet_model(model, x_test, y_test):
+#     test_loss, test_accuracy = model.evaluate(x_test, y_test)
+#     return test_accuracy
+
+# if __name__=="__main__":
+#     current_directory = os.getcwd()
+#     parent_directory = os.path.dirname(current_directory)
+#     os.chdir(parent_directory)
+#     new_directory = os.getcwd()
+#     data_dir = os.path.join(new_directory, 'data')
+#     training_images, validation_images, test_images = load_data(data_dir)
+
+#     print("\n\nLoading and preprocessing datasets for CNN...")
+#     x_train, y_train = load_images_for_cnn(training_images, augment=True)
+#     x_val, y_val = load_images_for_cnn(validation_images, augment=False)
+#     x_test, y_test = load_images_for_cnn(test_images, augment=False)
+
+#     #neural networks require numeric input, this maps labels to numbers
+#     input_shape = (64, 64, 3)
+#     num_classes = len(np.unique(y_train))
+#     le = LabelEncoder()
+#     y_train = le.fit_transform(y_train)
+#     y_val = le.transform(y_val)
+#     y_test = le.transform(y_test)
+
+#     # whith whole dataset
+#     # print("Training CNN model...")
+#     # cnn_model = train_cnn_model(x_train, y_train, x_val, y_val, input_shape, num_classes)
+
+
+#     # subsetting the training and validation data for CNN
+#     subset_fraction = 0.1  # 10% of data for fair comparison witn svm
+#     x_train_subset, y_train_subset = cnn_subset_data(x_train, y_train, subset_fraction)
+#     x_val_subset, y_val_subset = cnn_subset_data(x_val, y_val, subset_fraction)
+#     num_classes = len(le.classes_)
+#     print("Training CNN model on subset...")
+#     cnn_model = train_cnn_model(x_train_subset, y_train_subset, x_val_subset, y_val_subset, num_classes)
+
+#     print("Evaluating CNN model...")
+#     cnn_test_accuracy = evaluate_cnn_model(cnn_model, x_test, y_test, num_classes)
+
+#     y_train_subset = tf.keras.utils.to_categorical(y_train_subset, num_classes=num_classes)
+#     y_val_subset = tf.keras.utils.to_categorical(y_val_subset, num_classes=num_classes)
+#     y_test = tf.keras.utils.to_categorical(y_test, num_classes=num_classes)
+#     print("\nBuilding and training ResNet model...\n")
+#     resnet_model = build_resnet_model(input_shape, num_classes)
+#     resnet_model = train_resnet_model(resnet_model, x_train_subset, y_train_subset, x_val_subset, y_val_subset)
+
+#     print("\nEvaluating ResNet model...")
+#     resnet_test_accuracy = evaluate_resnet_model(resnet_model, x_test, y_test)
+
+#     # comparing with SVM
+#     print("\nLoading datasets for SVM...")
+#     training_dataset = load_images(training_images, True)
+#     validation_dataset = load_images(validation_images, False)
+
+#     #whole dataset
+#     #x_training, y_training = extract_features_and_labels(training_dataset)
+#     #x_validation, y_validation = extract_features_and_labels(validation_dataset)
+#     #best_classifier = train_and_evaluate(x_training, y_training, x_validation, y_validation)
+#     #test_accuracy = test_classifier(best_classifier, test_images)
+
+#     #subset (10%) for faster computing
+#     subset_size = len(training_dataset) // 10
+#     training_subset_keys = random.sample(list(training_dataset.keys()), subset_size)
+#     training_subset = {key: training_dataset[key] for key in training_subset_keys}
+#     subset_size = len(validation_dataset) // 10
+#     validation_subset_keys = random.sample(list(validation_dataset.keys()), subset_size)
+#     validation_subset = {key: validation_dataset[key] for key in validation_subset_keys}
+    
+#     x_training, y_training = extract_features_and_labels(training_subset)
+#     x_validation, y_validation = extract_features_and_labels(validation_subset)
+
+#     print("\nTraining SVM model...")
+#     best_classifier = train_and_evaluate(x_training, y_training, x_validation, y_validation)
+
+#     print("Evaluating SVM model...")
+#     svm_test_accuracy = test_classifier(best_classifier, test_images)
+
+#     print("\n\n-----------------------------------------------------------------------------------------")
+#     print("COMPARISON OF TEST ACCURACIES")
+#     print("-----------------------------------------------------------------------------------------")
+#     print(f"CNN Test Accuracy: {cnn_test_accuracy * 100:.2f}%")
+#     print(f"ResNet Test Accuracy: {resnet_test_accuracy * 100:.2f}%")
+#     print(f"SVM Test Accuracy: {svm_test_accuracy * 100:.2f}%")
+#     print("\n\n")
+
+def calculate_accuracy_by_species(predictions, true_labels, label_encoder):
+    accuracies = {}
+    
+    # Ensure true_labels are encoded as integers
+    if true_labels.ndim > 1:
+        true_labels = np.argmax(true_labels, axis=1)
+    
+    for label in np.unique(true_labels):
+        species_indices = np.where(true_labels == label)[0]
+        species_predictions = predictions[species_indices]
+        species_true_labels = true_labels[species_indices]
+
+        # Ensure species_predictions are integers
+        if species_predictions.ndim > 1:
+            species_predictions = np.argmax(species_predictions, axis=1)
+
+        species_accuracy = accuracy_score(species_true_labels, species_predictions)
+        species_name = label_encoder.inverse_transform([label])[0]
+        accuracies[species_name] = species_accuracy * 100
+    
+    return accuracies
+
+def calculate_accuracy_by_species_svm(predictions, true_labels, label_encoder):
+    accuracies = {}
+    
+    for label in np.unique(true_labels):
+        species_indices = np.where(true_labels == label)[0]
+        species_predictions = predictions[species_indices]
+        species_true_labels = true_labels[species_indices]
+
+        species_accuracy = accuracy_score(species_true_labels, species_predictions)
+        species_name = label_encoder.inverse_transform([label])[0]
+        accuracies[species_name] = species_accuracy * 100
+    
+    return accuracies
+
+def plot_accuracies_by_species(accuracies, model_name):
+    species = list(accuracies.keys())
+    accuracies = list(accuracies.values())
+
+    plt.figure(figsize=(12, 6))
+    plt.bar(species, accuracies, color='skyblue')
+    plt.xlabel('Mushroom Species')
+    plt.ylabel('Accuracy (%)')
+    plt.title(f'Accuracy by Mushroom Species for {model_name}')
+    plt.xticks(rotation=45, ha='right')
+    plt.ylim(0, 100)
+    plt.show()
+
+def evaluate_cnn_model(model, x_test, y_test, num_classes, label_encoder):
+    y_test_cat = to_categorical(y_test, num_classes)
+    predictions = model.predict(x_test)
+    test_loss, test_accuracy = model.evaluate(x_test, y_test_cat)
+    pred_labels = np.argmax(predictions, axis=1)
+
+    species_accuracies = calculate_accuracy_by_species(pred_labels, y_test, label_encoder)
+    return test_accuracy, species_accuracies
+
+def evaluate_resnet_model(model, x_test, y_test, label_encoder):
+    predictions = model.predict(x_test)
     test_loss, test_accuracy = model.evaluate(x_test, y_test)
+    pred_labels = np.argmax(predictions, axis=1)
+
+    species_accuracies = calculate_accuracy_by_species(pred_labels, y_test, label_encoder)
+    return test_accuracy, species_accuracies
+
+# def test_classifier(classifier, test_images, label_encoder):
+#     test_dataset = load_images(test_images, False)  # No augmentation for test images
+#     x_test, y_test = extract_features_and_labels(test_dataset)
+    
+#     # Encode labels
+#     y_test = label_encoder.transform(y_test)
+    
+#     y_test_pred = classifier.predict(x_test)
+#     species_accuracies = calculate_accuracy_by_species_svm(y_test_pred, y_test, label_encoder)
+
+#     test_accuracy = accuracy_score(y_test, y_test_pred)
+#     print("Test Accuracy: ", test_accuracy * 100, "%")
+#     print()
+    
+#     return test_accuracy, species_accuracies
+
+def test_classifier(classifier, test_images):
+    test_dataset = load_images(test_images, False)  # No augmentation for test images"
+
+    x_test, y_test = extract_features_and_labels(test_dataset)
+
+    y_test_pred = classifier.predict(x_test)
+    test_accuracy = accuracy_score(y_test, y_test_pred)
+
+    print("Test Accuracy: ", test_accuracy * 100, "%")
+    print()
     return test_accuracy
 
-if __name__=="__main__":
+# Main execution with plotting
+if __name__ == "__main__":
     current_directory = os.getcwd()
     parent_directory = os.path.dirname(current_directory)
     os.chdir(parent_directory)
@@ -309,7 +489,7 @@ if __name__=="__main__":
     x_val, y_val = load_images_for_cnn(validation_images, augment=False)
     x_test, y_test = load_images_for_cnn(test_images, augment=False)
 
-    #neural networks require numeric input, this maps labels to numbers
+    # Neural networks require numeric input, this maps labels to numbers
     input_shape = (64, 64, 3)
     num_classes = len(np.unique(y_train))
     le = LabelEncoder()
@@ -317,33 +497,30 @@ if __name__=="__main__":
     y_val = le.transform(y_val)
     y_test = le.transform(y_test)
 
-    # whith whole dataset
-    # print("Training CNN model...")
-    # cnn_model = train_cnn_model(x_train, y_train, x_val, y_val, input_shape, num_classes)
-
-
-    # subsetting the training and validation data for CNN
-    subset_fraction = 0.1  # 10% of data for fair comparison witn svm
+    # Subsetting the training and validation data for CNN
+    subset_fraction = 0.1  # 10% of data for fair comparison with SVM
     x_train_subset, y_train_subset = cnn_subset_data(x_train, y_train, subset_fraction)
     x_val_subset, y_val_subset = cnn_subset_data(x_val, y_val, subset_fraction)
     num_classes = len(le.classes_)
+    
     print("Training CNN model on subset...")
     cnn_model = train_cnn_model(x_train_subset, y_train_subset, x_val_subset, y_val_subset, num_classes)
 
     print("Evaluating CNN model...")
-    cnn_test_accuracy = evaluate_cnn_model(cnn_model, x_test, y_test, num_classes)
+    cnn_test_accuracy, cnn_species_accuracies = evaluate_cnn_model(cnn_model, x_test, y_test, num_classes, le)
 
+    print("\nBuilding and training ResNet model...\n")
     y_train_subset = tf.keras.utils.to_categorical(y_train_subset, num_classes=num_classes)
     y_val_subset = tf.keras.utils.to_categorical(y_val_subset, num_classes=num_classes)
     y_test = tf.keras.utils.to_categorical(y_test, num_classes=num_classes)
-    print("\nBuilding and training ResNet model...\n")
     resnet_model = build_resnet_model(input_shape, num_classes)
     resnet_model = train_resnet_model(resnet_model, x_train_subset, y_train_subset, x_val_subset, y_val_subset)
 
     print("\nEvaluating ResNet model...")
-    resnet_test_accuracy = evaluate_resnet_model(resnet_model, x_test, y_test)
+    resnet_test_accuracy, resnet_species_accuracies = evaluate_resnet_model(resnet_model, x_test, y_test, le)
 
-    # comparing with SVM
+    print("\nLoading datasets for SVM...")
+     # comparing with SVM
     print("\nLoading datasets for SVM...")
     training_dataset = load_images(training_images, True)
     validation_dataset = load_images(validation_images, False)
@@ -370,6 +547,37 @@ if __name__=="__main__":
 
     print("Evaluating SVM model...")
     svm_test_accuracy = test_classifier(best_classifier, test_images)
+    # training_dataset = load_images(training_images, True)
+    # validation_dataset = load_images(validation_images, False)
+
+    # # Subsetting for faster computing
+    # subset_size = len(training_dataset) // 10
+    # training_subset_keys = random.sample(list(training_dataset.keys()), subset_size)
+    # training_subset = {key: training_dataset[key] for key in training_subset_keys}
+    # subset_size = len(validation_dataset) // 10
+    # validation_subset_keys = random.sample(list(validation_dataset.keys()), subset_size)
+    # validation_subset = {key: validation_dataset[key] for key in validation_subset_keys}
+
+    # x_training, y_training = extract_features_and_labels(training_subset)
+    # x_validation, y_validation = extract_features_and_labels(validation_subset)
+
+    # print("\nTraining and evaluating SVM model...")
+    # best_classifier = train_and_evaluate(x_training, y_training, x_validation, y_validation)
+
+    # x_test, y_test = extract_features_and_labels(y_validation)
+    # y_test = le.transform(y_test)
+
+    # y_train_pred = best_classifier.predict(x_training)
+    # y_test_pred = best_classifier.predict(y_validation)
+
+    # training_accuracy = accuracy_score(y_training, y_train_pred)
+    # validation_accuracy = accuracy_score(y_validation, y_test_pred)
+
+    # svm_species_accuracies = calculate_accuracy_by_species_svm(y_test_pred, y_test, le)
+    # print("SVM accuracy: " + validation_accuracy)
+
+    # print("Evaluating SVM model...")
+    # svm_test_accuracy, svm_species_accuracies = test_classifier(best_classifier, test_images, le)
 
     print("\n\n-----------------------------------------------------------------------------------------")
     print("COMPARISON OF TEST ACCURACIES")
@@ -378,3 +586,11 @@ if __name__=="__main__":
     print(f"ResNet Test Accuracy: {resnet_test_accuracy * 100:.2f}%")
     print(f"SVM Test Accuracy: {svm_test_accuracy * 100:.2f}%")
     print("\n\n")
+
+    # Plotting
+    print("Plotting...")
+    plot_accuracies_by_species(cnn_species_accuracies, 'CNN')
+    plot_accuracies_by_species(resnet_species_accuracies, 'ResNet')
+    print("\n")
+    print("Finished plotting")
+    print("\n")
